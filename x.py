@@ -7,34 +7,71 @@ import requests
 import random as rnd
 import json
 import pandas as pd
+from pydantic import BaseModel
+from typing import Optional
 
 app =  FastAPI()
+FILEPATH = 'cache.csv'
 
 
 def dict_to_string(d):
     return json.dumps(d, sort_keys=True, ensure_ascii=False)
 
 def cheсk_cache(string):
-    FILEPATH = 'cache.csv'
     try:
         df = pd.read_csv(FILEPATH, header=None, names=['string', 'sankey_html1', 'sankey_html2'])
+        print("len(cache.csv)", len(df))
     except (FileNotFoundError, pd.errors.EmptyDataError):
-        df = pd.DataFrame(columns=['string', 'sankey_html1', 'sankey_html2', 'zaprosheno'])
+        df = pd.DataFrame(columns=['string', 'sankey_html1', 'sankey_html2', ])
         df.to_csv(FILEPATH, header=False, index=False, encoding='utf-8')
     finding_in_cache = df[df.string == string]
-    print(finding_in_cache)
+    print("finding_in_cache", finding_in_cache)
     if len(finding_in_cache) == 0:
         df = pd.concat([df, pd.DataFrame({'string': [string], 'sankey_html1': [''], 'sankey_html2': [''], }) ])
         df.to_csv(FILEPATH, header=False, index=False, encoding='utf-8')
         return '', ''
     else:
-        return finding_in_cache['sankey_html1'][0], finding_in_cache['sankey_html2'][0], 
+        return finding_in_cache.iloc[0]['sankey_html1'], finding_in_cache.iloc[0]['sankey_html2']
     
 
 def sent_message(text):
     BOT_TOKEN = "8445738943:AAHcZYGAtt2UTbTZj3jGaDKTJy49yoa_WqE"
-    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", data={"chat_id": 1287128570, "text": f'/zapros_snaky${rnd.randint(1, 100_000)}$&' + str(text)})
+    print(-1002916176207)
+    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", data={"chat_id": -1002916176207, "text": f'zapros_snaky${rnd.randint(1, 100_000)}$&' + str(text)})
+    print(-4821667868)
+    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", data={"chat_id": -4821667868, "text": f'zapros_snaky${rnd.randint(1, 100_000)}$&' + str(text)})
+    print(3)
 
+@app.get("/current_queries", response_class=HTMLResponse)
+def current_queries():
+    with open(FILEPATH, 'r', encoding='utf-8') as file:
+        content = file.read()
+    return content
+    
+
+
+class SankeyRequest(BaseModel):
+    string: str  # ваш JSON строка
+    sankey_html1: str
+    sankey_html2: Optional[str] = None
+
+@app.post("/add_sankey_answer", response_class=HTMLResponse)
+async def add_sankey_answer(request: SankeyRequest):
+    print("/add_sankey_answer")
+    string = request.string
+    sankey_html1 = request.sankey_html1.replace("/", "")
+    sankey_html2 = request.sankey_html2.replace("/", "")
+    print(f"Received data: {request.string}")
+    print(f"Sankey HTML2 length: {len(request.sankey_html1)}")
+    print(f"Sankey HTML2 length: {len(request.sankey_html2)}")
+    df = pd.read_csv(FILEPATH, header=None, names=['string', 'sankey_html1', 'sankey_html2'])
+    finding_in_cache = df[df.string == string]
+    if (df['string'] == string).sum() > 0:
+        df.loc[df['string'] == string, ['sankey_html1', 'sankey_html2']] = sankey_html1, sankey_html2
+    else:
+        df = pd.concat([df, pd.DataFrame({'string': [string], 'sankey_html1': [sankey_html1], 'sankey_html2': [sankey_html2], })]).fillna("")
+    df.to_csv(FILEPATH, header=False, index=False, encoding='utf-8')
+    return 'complete'
 
 @app.get("/a", response_class=HTMLResponse)
 def fa():
@@ -134,7 +171,7 @@ def generate_sankey_html(data):
     if sankey_html1 == "":
         sankey_html1 = 'Происходит обработка дэшборда до заказа. Ожидайте 1-4 минуты'
         sankey_html2 = 'Происходит обработка дэшборда после заказа. Ожидайте 1-4 минуты'
-    return f"<div class='sankey-chart'>{sankey_html1}<br>Sankey Diagram 1 based on: {data['filters_applied']}</div>", f"<div class='sankey-chart'>{sankey_html2}<br>Sankey Diagram 2 based on: {data['filters_applied']}</div>"
+    return f"<div class='sankey-chart'>{sankey_html1}<br>Sankey Diagram 1 based on: {string}</div>", f"<div class='sankey-chart'>{sankey_html2}<br>Sankey Diagram 2 based on: {data['filters_applied']}</div>"
 
 
 
